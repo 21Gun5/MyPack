@@ -10,13 +10,25 @@
 #pragma comment(linker,"/merge:.rdata=.text")
 #pragma comment(linker,"/section:.text,RWE")
 
-// 2 提供一个函数,作为源程序的新OEP(没有名称粉碎'导出'裸函数)
-extern "C" __declspec(dllexport) __declspec(naked) void start()
+// 2 用于共享数据的结构体
+typedef struct _SHAREDATA
 {
-	__asm
+	long originalOEP = 0;//原始OEP
+}SHAREDATA, PSHAREDATA;
+
+extern "C"
+{
+	// 3 导出一个变量,用于接收数据(数据在.data段,会合并到.text中,整体复制到新区段
+	__declspec(dllexport) SHAREDATA shareData;
+	// 4 提供一个函数,作为源程序的新OEP(没有名称粉碎/导出/裸函数)
+	__declspec(dllexport) __declspec(naked) void start()
 	{
-		mov eax, eax;
-		mov eax, eax;
-		mov eax, eax;
+		__asm
+		{
+			mov ebx, dword ptr fs : [0x30];	// 获取PEB
+			mov ebx, dword ptr[ebx + 0x08];	// 获取加载基址ImageBase
+			add ebx, shareData.originalOEP;		// RVA+基址= 原始OEP
+			jmp ebx;						// 跳转原始OEP
+		}
 	}
 }

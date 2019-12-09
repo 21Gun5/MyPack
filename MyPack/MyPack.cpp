@@ -1,5 +1,6 @@
 #include "MyPack.h"
- 
+#include <DbgHelp.h>
+#pragma comment(lib,"DbgHelp.lib")
 
  // 获取PE头相关信息
 PIMAGE_DOS_HEADER MyPack::GetDosHeader(DWORD fileBase)
@@ -50,6 +51,8 @@ void MyPack::LoadStub(LPCSTR fileName)
 	DWORD startAddr = (DWORD)GetProcAddress((HMODULE)m_dllBase, "start");
 	// 3 计算start函数的段内偏移,最终地址=加载基址+区段基址+段内偏移
 	m_startOffset = startAddr - m_dllBase - GetSection(m_dllBase, ".text")->VirtualAddress;
+	// 4 获取dll导出的共享接口,通过此接口可实现数据共享(地址间接修改
+	m_pShareData = (PSHAREDATA)GetProcAddress((HMODULE)m_dllBase, "shareData");
 }
 
 // 后者复制到前者,实现添加新区段
@@ -119,7 +122,9 @@ PIMAGE_SECTION_HEADER MyPack::GetSection(DWORD fileBase, LPCSTR sectionName)
 
 void MyPack::SetOEP()
 {
-	// 设置扩展头中OEP字段, 新OEP= start 段内偏移+新区段基址
+	// 1 修改OEP前,将原始OEP保存下来(可共享给dll,本质是通过地址间接修改
+	m_pShareData->originalOEP = GetOptHeader(m_fileBase)->AddressOfEntryPoint;
+	// 2 设置扩展头中OEP字段, 新OEP= start 段内偏移+新区段基址
 	GetOptHeader(m_fileBase)->AddressOfEntryPoint = m_startOffset + GetSection(m_fileBase, ".pack")->VirtualAddress;
 	return;
 }
@@ -132,6 +137,44 @@ void MyPack::CopySectionData(LPCSTR dstSectionName, LPCSTR srcSectionName)
 	BYTE * pDstData = (BYTE *)(GetSection(m_fileBase, ".pack")->PointerToRawData + m_fileBase);
 	// 3 源映像拷贝至目的镜像
 	memcpy(pDstData, pSrcData, GetSection(m_dllBase, ".text")->SizeOfRawData);
+
+	return;
+}
+
+void MyPack::FixDllReloc()
+{
+	DWORD size = 0, oldProtect = 0;
+	// 1 获取dll的重定位表
+	auto pRelocTable = (PIMAGE_BASE_RELOCATION)ImageDirectoryEntryToData((LPVOID)m_dllBase, TRUE, 5, &size);
+	// 2 循环,直至为0重定位块结束
+	while (pRelocTable->SizeOfBlock)
+	{
+		// 3 若需要重定位的数据在代码段,则修改其访问属性(页为单位0x1000,
+		VirtualProtect((LPVOID)(pRelocTable->VirtualAddress + m_dllBase), 0x1000, PAGE_READWRITE, &oldProtect);
+		// 4 获取重定位项数组的首地址 及重定位项的数量
+		TypeOffset * pRelocItem = (TypeOffset *)pRelocTable + 1;//+1 跳过重定位结构体
+		int relocItemCount = (pRelocTable->SizeOfBlock - 8) / 2;
+		// 5 遍历当前重定位块中所有的重定位项
+		for (int i = 0; i < relocItemCount; i++)
+		{
+			// 6 type==3表示需要进行重定位,其他不管
+			if (pRelocItem[i].Type == 3)
+			{
+				// 7 获取需要进行重定位的地址所在的位置
+				DWORD * pAddr = (DWORD *)(m_dllBase + pRelocTable->VirtualAddress + pRelocItem[i].Offset);
+				// 8 计算出不变的段内偏移=最终地址 - dll 文件加载基址 - .text 区段基址
+				DWORD offsetInSection = *pAddr - m_dllBase - GetSection(m_dllBase, ".text")->VirtualAddress;
+				// 9 修复地址,新地址 = 段内偏移+ exe 文件加载基址 + 新区段.pack基址
+				*pAddr = offsetInSection + GetOptHeader(m_fileBase)->ImageBase + GetSection(m_fileBase, ".pack")->VirtualAddress;
+			}
+		}
+		// 10 还原区段的保护属性
+		VirtualProtect((LPVOID)(pRelocTable->VirtualAddress + m_dllBase), 0x1000, oldProtect, &oldProtect);
+		// 11 下一个重定位块
+		pRelocTable = (PIMAGE_BASE_RELOCATION)((DWORD)pRelocTable + pRelocTable->SizeOfBlock);
+	}
+	// 12 关闭源程序的重定位,上述仅修复了dll壳代码重定位,并非表示源程序支持重定位
+	GetOptHeader(m_fileBase)->DllCharacteristics = 0x8100;
 
 	return;
 }
