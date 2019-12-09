@@ -11,7 +11,10 @@ struct TypeOffset
 // 共享数据结构体
 typedef struct _SHAREDATA
 {
-	long originalOEP = 0;// 原始OEP
+	long origOEP = 0;// 原始OEP
+	long rva = 0;// 待加密位置的RVA
+	long size = 0;// 加密的大小
+	BYTE key = 0;// 加密时密钥
 } SHAREDATA, *PSHAREDATA;
 
 class MyPack
@@ -21,7 +24,7 @@ private:
 	DWORD m_fileBase = 0;// 文件基地址; DWORD是为了计算方便
 	DWORD m_dllBase = 0;// dll 的加载基址/模块句柄
 	DWORD m_startOffset = 0;// start 函数的段内偏移,用于计算新OEP
-	PSHAREDATA m_pShareData = NULL;// 定义共享数据,向壳代码dll提供信息
+	PSHAREDATA m_pShareData = NULL;// 定义共享数据,向壳代码dll提供信息(对共享数据的操作都要写在拷贝区段之前)
 private:
 	// 工具函数,用于获取PE头相关信息
 	PIMAGE_DOS_HEADER GetDosHeader(DWORD fileBase);
@@ -39,5 +42,6 @@ public:
 	PIMAGE_SECTION_HEADER GetSection(DWORD fileBase, LPCSTR sectionName);// 获取区段头信息(区段头结构体
 	void SetOEP();// 重新设置OEP
 	void CopySectionData(LPCSTR dstSectionName, LPCSTR srcSectionName);// 设置新区段内容(后者拷贝至前者
-	void FixDllReloc();
+	void FixDllReloc();// 修复dll壳代码需要重定位的地方
+	void EncodeSection(LPCSTR sectionName);// 加密区段(异或加密
 };

@@ -1,5 +1,6 @@
 #include "MyPack.h"
 #include <DbgHelp.h>
+#include <time.h>
 #pragma comment(lib,"DbgHelp.lib")
 
  // 获取PE头相关信息
@@ -123,7 +124,7 @@ PIMAGE_SECTION_HEADER MyPack::GetSection(DWORD fileBase, LPCSTR sectionName)
 void MyPack::SetOEP()
 {
 	// 1 修改OEP前,将原始OEP保存下来(可共享给dll,本质是通过地址间接修改
-	m_pShareData->originalOEP = GetOptHeader(m_fileBase)->AddressOfEntryPoint;
+	m_pShareData->origOEP = GetOptHeader(m_fileBase)->AddressOfEntryPoint;
 	// 2 设置扩展头中OEP字段, 新OEP= start 段内偏移+新区段基址
 	GetOptHeader(m_fileBase)->AddressOfEntryPoint = m_startOffset + GetSection(m_fileBase, ".pack")->VirtualAddress;
 	return;
@@ -141,6 +142,7 @@ void MyPack::CopySectionData(LPCSTR dstSectionName, LPCSTR srcSectionName)
 	return;
 }
 
+// 修复dll壳代码需要重定位的地方
 void MyPack::FixDllReloc()
 {
 	DWORD size = 0, oldProtect = 0;
@@ -176,5 +178,25 @@ void MyPack::FixDllReloc()
 	// 12 关闭源程序的重定位,上述仅修复了dll壳代码重定位,并非表示源程序支持重定位
 	GetOptHeader(m_fileBase)->DllCharacteristics = 0x8100;
 
+	return;
+}
+
+// 加密区段(异或加密
+void MyPack::EncodeSection(LPCSTR sectionName)
+{
+	// 1 需要加密的区段(源程序代码段
+	auto pSection = GetSection(m_fileBase, ".text");
+	// 2 区段内容所在的位置
+	BYTE * pSectionData = (BYTE*)pSection->PointerToRawData + m_fileBase;
+	// 3 解密时需要的信息(共享给dll壳代码
+	srand((unsigned int)time(0));
+	m_pShareData->key = rand() % 0xff;
+	m_pShareData->rva = pSection->VirtualAddress;
+	m_pShareData->size = pSection->SizeOfRawData;
+	// 4 循环,逐位进行异或加密
+	for (int i = 0; i < m_pShareData->size; i++)
+	{
+		pSectionData[i] ^= m_pShareData->key;
+	}
 	return;
 }

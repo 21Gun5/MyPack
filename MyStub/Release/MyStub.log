@@ -6,7 +6,7 @@ cl : 命令行 warning D9025: 正在重写“/sdl”(用“/GS-”)
   MyStub.cpp
     正在创建库 ..\MyPack\demo\MyStub.lib 和对象 ..\MyPack\demo\MyStub.exp
   正在生成代码
-  All 4 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  All 9 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
   已完成代码的生成
 MyStub.obj : warning LNK4254: 节“.data”(C0000040)合并到具有不同特性的“.text”(60000020)
   MyStub.vcxproj -> C:\Users\ry1yn\source\repos\15PB\MyStub\..\MyPack\demo\MyStub.dll
