@@ -42,34 +42,48 @@ void MyPack::LoadFile(LPCSTR fileName)
 	return;
 }
 
-// 为PE文件添加新区段
-void MyPack::AddSection(LPCSTR sectionName)
+void MyPack::LoadStub(LPCSTR fileName)
 {
-	// 1 获取区段表最后一个区段头的地址
+	// 1 以不执行dllMain的方式,加载模块到当前的内存中
+	m_dllBase = (DWORD)LoadLibraryExA(fileName, NULL, DONT_RESOLVE_DLL_REFERENCES);
+	// 2 从dll中获取start函数的地址
+	DWORD startAddr = (DWORD)GetProcAddress((HMODULE)m_dllBase, "start");
+	// 3 计算start函数的段内偏移,最终地址=加载基址+区段基址+段内偏移
+	m_startOffset = startAddr - m_dllBase - GetSection(m_dllBase, ".text")->VirtualAddress;
+}
+
+// 后者复制到前者,实现添加新区段
+void MyPack::CopySection(LPCSTR dstSectionName, LPCSTR srcSectionName)
+{
+	// 1 获取区段头表最后一个区段头的地址
 	auto pLastSection = &IMAGE_FIRST_SECTION(GetNtHeader(m_fileBase))[GetFileHeader(m_fileBase)->NumberOfSections - 1];
-	// 2 将区段数量+1(文件头中
+	// 2 区段数量+1(文件头中
 	GetFileHeader(m_fileBase)->NumberOfSections += 1;
 	// 3 通过最后一个区段头,找到新添加区段头的位置,并填充0
 	auto pNewSection = pLastSection + 1;
 	memset(pNewSection, 0, sizeof(IMAGE_SECTION_HEADER));
-	// 4 设置新区段头的字段:区段名称
-	memcpy(pNewSection->Name, sectionName, 7);// 用memcpy而非strcpy; 总共8字节,拷贝7,预留一个给\0
-	// 5 设置新区段头的字段:区段属性
-	pNewSection->Characteristics = 0xE00000E0;// 此时一定包括读/写/执行权限
-	// 6 设置新区段所在RVA = 上一个区段RVA　+ 其对齐后的内存大小
+	// 4 从dll中获取需拷贝的源区段
+	auto srcSection = GetSection(m_dllBase, srcSectionName);
+	// 5 直接将源区段的信息拷贝至新/目的区段中(无需设置属性了,只改名字即可
+	memcpy(pNewSection, srcSection, sizeof(IMAGE_SECTION_HEADER));
+	// 6 设置新区段头的字段:区段名称
+	memcpy(pNewSection->Name, dstSectionName, 7);// 用memcpy而非strcpy; 总共8字节,拷贝7,预留一个给\0
+	// 7 设置新区段所在RVA = 上一个区段RVA　+ 其对齐后的内存大小
 	pNewSection->VirtualAddress = pLastSection->VirtualAddress + Align(pLastSection->Misc.VirtualSize, GetOptHeader(m_fileBase)->SectionAlignment);
-	// 7 设置新区段所在FOA = 上一个区段FOA + 其对齐后的文件大小
+	// 8 设置新区段所在FOA = 上一个区段FOA + 其对齐后的文件大小
 	pNewSection->PointerToRawData = pLastSection->PointerToRawData + Align(pLastSection->SizeOfRawData, GetOptHeader(m_fileBase)->FileAlignment);
-	// 8 设置新区段的文件大小和内存大小(二者相等即可
-	pNewSection->SizeOfRawData = pNewSection->Misc.VirtualSize = 0x200;
-	// 9 重新计算文件的物理大小= 最后一个区段FOA + 其文件大小,并将原文件数据保存起来
+	// 9 设置新区段的文件大小和内存大小(二者相等即可
+	//pNewSection->SizeOfRawData = pNewSection->Misc.VirtualSize = 0x200;
+	// 10 重新计算文件的物理大小= 最后一个区段FOA + 其文件大小,并将原文件数据保存起来
 	m_fileSize = pNewSection->PointerToRawData + pNewSection->SizeOfRawData;
 	m_fileBase = (DWORD)realloc((void *)m_fileBase, m_fileSize);// 之所以用allco而非new,就是为了后面可以用realloc
-	// 10 修改文件的内存大小 = 最后一个区段RVA + 其内存大小
+	// 11 修改文件的内存大小 = 最后一个区段RVA + 其内存大小
 	GetOptHeader(m_fileBase)->SizeOfImage = pNewSection->VirtualAddress + pNewSection->Misc.VirtualSize;
 	
 	return;
 }
+
+
 
 // 将添加区段后的文件另存为新文件
 void MyPack::SaveFile(LPCSTR fileName)
@@ -81,6 +95,43 @@ void MyPack::SaveFile(LPCSTR fileName)
 	WriteFile(hFile, (LPVOID *)m_fileBase, m_fileSize, &writeSize, NULL);
 	// 关闭文件句柄以防止泄露
 	CloseHandle(hFile);
+
+	return;
+}
+
+// 获取区段头信息(区段头结构体
+PIMAGE_SECTION_HEADER MyPack::GetSection(DWORD fileBase, LPCSTR sectionName)
+{
+	// 1 获取区段头表(即第一项)
+	auto sectionTable = IMAGE_FIRST_SECTION(GetNtHeader(fileBase));
+	// 2 获取区段头表的元素个数
+	WORD sectionNumber = GetFileHeader(fileBase)->NumberOfSections;
+	// 3 遍历区段头表,比较其名称,返回区段头所在地址(而非真正区段
+	for (int i = 0; i < sectionNumber; i++)
+	{
+		// 4 用memcpy而非strcmp,前者可指定比较长度,后者以\0为准
+		if (!memcmp(sectionName, sectionTable[i].Name, strlen(sectionName) + 1))
+			return &sectionTable[i];
+	}
+	// 5 若未找到,则返回null
+	return NULL;
+}
+
+void MyPack::SetOEP()
+{
+	// 设置扩展头中OEP字段, 新OEP= start 段内偏移+新区段基址
+	GetOptHeader(m_fileBase)->AddressOfEntryPoint = m_startOffset + GetSection(m_fileBase, ".pack")->VirtualAddress;
+	return;
+}
+// 设置新区段内容(后者拷贝至前者
+void MyPack::CopySectionData(LPCSTR dstSectionName, LPCSTR srcSectionName)
+{
+	// 1 获取源区段在虚拟空间中的地址(映像,LoadLibrary获取的
+	BYTE * pSrcData = (BYTE *)(GetSection(m_dllBase,".text")->VirtualAddress + m_dllBase);
+	// 2 获取目的区段在物理空间中的地址(镜像,ReadFile获取的
+	BYTE * pDstData = (BYTE *)(GetSection(m_fileBase, ".pack")->PointerToRawData + m_fileBase);
+	// 3 源映像拷贝至目的镜像
+	memcpy(pDstData, pSrcData, GetSection(m_dllBase, ".text")->SizeOfRawData);
 
 	return;
 }
