@@ -9,7 +9,7 @@ int main()
 	pack.LoadStub("MyStub.dll");// 壳代码
 	// 2 后者复制到前者,实现添加新区段头
 	pack.CopySection(".pack",".text");
-	// 3 设置OEP(为start 函数地址
+	// 3 设置OEP(为 start 函数地址
 	pack.SetOEP();
 	// 4 对壳代码dll的数据进行重定位
 	pack.FixDllReloc();

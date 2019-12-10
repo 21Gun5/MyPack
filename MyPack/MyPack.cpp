@@ -43,13 +43,12 @@ void MyPack::LoadFile(LPCSTR fileName)
 
 	return;
 }
-
 void MyPack::LoadStub(LPCSTR fileName)
 {
 	// 1 以不执行dllMain的方式,加载模块到当前的内存中
 	m_dllBase = (DWORD)LoadLibraryExA(fileName, NULL, DONT_RESOLVE_DLL_REFERENCES);
 	// 2 从dll中获取start函数的地址
-	DWORD startAddr = (DWORD)GetProcAddress((HMODULE)m_dllBase, "start");
+	DWORD startAddr = (DWORD)GetProcAddress((HMODULE)m_dllBase, "Start");
 	// 3 计算start函数的段内偏移,最终地址=加载基址+区段基址+段内偏移
 	m_startOffset = startAddr - m_dllBase - GetSection(m_dllBase, ".text")->VirtualAddress;
 	// 4 获取dll导出的共享接口,通过此接口可实现数据共享(地址间接修改
@@ -87,8 +86,6 @@ void MyPack::CopySection(LPCSTR dstSectionName, LPCSTR srcSectionName)
 	return;
 }
 
-
-
 // 将添加区段后的文件另存为新文件
 void MyPack::SaveFile(LPCSTR fileName)
 {
@@ -121,6 +118,7 @@ PIMAGE_SECTION_HEADER MyPack::GetSection(DWORD fileBase, LPCSTR sectionName)
 	return NULL;
 }
 
+// 重新设置OEP
 void MyPack::SetOEP()
 {
 	// 1 修改OEP前,将原始OEP保存下来(可共享给dll,本质是通过地址间接修改
@@ -129,6 +127,7 @@ void MyPack::SetOEP()
 	GetOptHeader(m_fileBase)->AddressOfEntryPoint = m_startOffset + GetSection(m_fileBase, ".pack")->VirtualAddress;
 	return;
 }
+
 // 设置新区段内容(后者拷贝至前者
 void MyPack::CopySectionData(LPCSTR dstSectionName, LPCSTR srcSectionName)
 {
