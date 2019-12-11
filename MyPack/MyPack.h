@@ -15,7 +15,33 @@ typedef struct _SHAREDATA
 	long rva = 0;// 待加密位置的RVA
 	long size = 0;// 加密的大小
 	BYTE key = 0;// 加密时密钥
-} SHAREDATA, *PSHAREDATA;
+} SHAREDATA, *PSHAREDATA;//here
+
+//
+//typedef struct _StubConf
+//{
+//	DWORD srcOep;		//入口点
+//	DWORD textScnRVA;	//代码段RVA
+//	DWORD textScnSize;	//代码段的大小
+//
+//	unsigned char key[16] = {};//解密密钥
+//	int index = 0;			  //加密的区段数量 用的时候需要-1
+//	int data[20][2];  //加密的区段RVA和Size	
+//
+//	DWORD dwDataDir[20][2];  //数据目录表的RVA和Size	
+//	DWORD dwNumOfDataDir;	//数据目录表的个数
+//
+//	DWORD oep;
+//	DWORD nImportVirtual;
+//	DWORD nImportSize;
+//	DWORD nRelocVirtual;
+//	DWORD nRelocSize;
+//	DWORD nResourceVirtual;
+//	DWORD nResourceSize;
+//	DWORD nTlsVirtual;
+//	DWORD nTlsSize;
+//
+//}StubConf,*PSubConf;
 
 class MyPack
 {
@@ -25,6 +51,7 @@ private:
 	DWORD m_dllBase = 0;// dll 的加载基址/模块句柄
 	DWORD m_startOffset = 0;// start 函数的段内偏移,用于计算新OEP
 	PSHAREDATA m_pShareData = NULL;// 定义共享数据,向壳代码dll提供信息(对共享数据的操作都要写在拷贝区段之前)
+	//PSubConf m_pShareData = NULL;
 private:
 	// 工具函数,用于获取PE头相关信息
 	PIMAGE_DOS_HEADER GetDosHeader(DWORD fileBase);

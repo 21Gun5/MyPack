@@ -14,11 +14,12 @@ int main()
 	// 4 对壳代码dll的数据进行重定位
 	pack.FixDllReloc();
 	// 5 加密区段(异或加密
-	pack.EncodeSection(".text");
+	pack.EncodeSection(".text");//here
 	// 6 设置新区段内容(后者拷贝至前者
 	pack.CopySectionData(".pack",".text");
 	// 7 另存为新文件
 	pack.SaveFile("demo_pack.exe");
-
+	
+	system("pause");
 	return 0;
 }

@@ -52,7 +52,8 @@ void MyPack::LoadStub(LPCSTR fileName)
 	// 3 计算start函数的段内偏移,最终地址=加载基址+区段基址+段内偏移
 	m_startOffset = startAddr - m_dllBase - GetSection(m_dllBase, ".text")->VirtualAddress;
 	// 4 获取dll导出的共享接口,通过此接口可实现数据共享(地址间接修改
-	m_pShareData = (PSHAREDATA)GetProcAddress((HMODULE)m_dllBase, "shareData");
+	m_pShareData = (PSHAREDATA)GetProcAddress((HMODULE)m_dllBase, "shareData");//here
+	//m_pShareData = (PSubConf)GetProcAddress((HMODULE)m_dllBase, "g_conf");
 }
 
 // 后者复制到前者,实现添加新区段
@@ -122,7 +123,8 @@ PIMAGE_SECTION_HEADER MyPack::GetSection(DWORD fileBase, LPCSTR sectionName)
 void MyPack::SetOEP()
 {
 	// 1 修改OEP前,将原始OEP保存下来(可共享给dll,本质是通过地址间接修改
-	m_pShareData->origOEP = GetOptHeader(m_fileBase)->AddressOfEntryPoint;
+	m_pShareData->origOEP = GetOptHeader(m_fileBase)->AddressOfEntryPoint;//here
+	//m_pShareData->srcOep = GetOptHeader(m_fileBase)->AddressOfEntryPoint;
 	// 2 设置扩展头中OEP字段, 新OEP= start 段内偏移+新区段基址
 	GetOptHeader(m_fileBase)->AddressOfEntryPoint = m_startOffset + GetSection(m_fileBase, ".pack")->VirtualAddress;
 	return;
@@ -180,7 +182,7 @@ void MyPack::FixDllReloc()
 	return;
 }
 
-// 加密区段(异或加密
+// 加密区段(异或加密//here
 void MyPack::EncodeSection(LPCSTR sectionName)
 {
 	// 1 需要加密的区段(源程序代码段
