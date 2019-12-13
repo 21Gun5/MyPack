@@ -18,18 +18,24 @@
     <ClCompile Include="main.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="CMyPack.cpp">
+    <ClCompile Include="MyPack.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="CAES.cpp">
+    <ClCompile Include="lz4.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="AES.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="CMyPack.h">
+    <ClInclude Include="MyPack.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="CAES.h">
+    <ClInclude Include="lz4.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="AES.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
